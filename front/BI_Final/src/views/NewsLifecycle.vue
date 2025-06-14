@@ -40,7 +40,7 @@
         </v-menu>
       </div>
       <div class="input-row">
-        <v-btn class="query-btn" color="primary" @click="query" :loading="loading">查询</v-btn>
+        <v-btn class="query-btn" color="primary" @click="fetchData" :loading="loading">查询</v-btn>
       </div>
     </div>
 
@@ -88,22 +88,46 @@ async function fetchNewsIdOptions() {
   loadingNewsId.value = false
 }
 
-async function query() {
+async function fetchData() {
+  if (!newsId.value || dateRange.value.length !== 2) {
+    alert('请选择新闻ID和时间范围')
+    return
+  }
   loading.value = true
-  setTimeout(() => {
+  try {
+    // 模拟从数据库获取数据
+    const data = await getLifecycleData(newsId.value, dateRange.value[0], dateRange.value[1])
     chartOption.value = {
       title: { text: '新闻生命周期趋势' },
       tooltip: { trigger: 'axis' },
-      xAxis: { type: 'category', data: ['2023-06-01', '2023-06-02'] },
+      xAxis: { type: 'category', data: data.periods },
       yAxis: { type: 'value' },
       series: [
-        { name: '曝光', type: 'bar', data: [100, 120] },
-        { name: '点击', type: 'bar', data: [20, 30] },
-        { name: '点击率', type: 'line', data: [20, 25] }
+        { name: '曝光', type: 'bar', data: data.impressions },
+        { name: '点击', type: 'bar', data: data.clicks },
+        { name: '点击率', type: 'line', data: data.ctrs }
       ]
     }
+  } catch (error) {
+    console.error('获取数据失败', error)
+    alert('获取数据失败，请重试')
+  } finally {
     loading.value = false
-  }, 500)
+  }
+}
+
+// 模拟从数据库获取数据的函数
+async function getLifecycleData(newsId, startDate, endDate) {
+  return new Promise((resolve) => {
+    setTimeout(() => {
+      resolve({
+        periods: ['2023-06-01', '2023-06-02'],
+        impressions: [100, 120],
+        clicks: [20, 30],
+        ctrs: [20, 25]
+      })
+    }, 500)
+  })
 }
 </script>
 
