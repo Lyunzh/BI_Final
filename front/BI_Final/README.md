@@ -22,7 +22,9 @@ npm install vue vue-router axios
 ```sh
 npm install echarts vue-echarts
 ```
+```sh
 npm install vuetify@3.3.23 @mdi/font
+```
 ### Compile and Hot-Reload for Development
 
 ```sh
