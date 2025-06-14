@@ -3,7 +3,7 @@
   
  <div class="app-header">
     <span class="app-title">新闻实时动态分析系统</span>
-    <button class="clear-btn" @click="refreshAll">清除数据</button>
+    <button class="clear-btn" @click="refreshAll">清除内容</button>
   </div>
   <NavBar />
   <router-view />
@@ -13,7 +13,7 @@
 import NavBar from './components/NavBar.vue'
 function refreshAll() {
   window.location.reload()
-  alert('数据已清空！')
+  alert('内容已清空！')
 }
 </script>
 <style scoped>
