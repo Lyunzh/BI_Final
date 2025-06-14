@@ -1,110 +1,108 @@
 <template>
-  <div class="page">
+  <div class="interest-profile-page">
+    <!-- 输入区 -->
     <div class="input-area">
       <div class="input-row">
         <label class="input-label">用户ID</label>
-        <v-select
-          v-model="userId"
-          :items="userIdOptions"
-          class="input-box"
-          dense
-          outlined
-          placeholder="请选择用户ID"
-          :loading="loadingUserId"
-          style="max-width: 260px"
-        />
+        <input type="text" v-model="userId" class="input-box" placeholder="请输入用户ID" />
       </div>
       <div class="input-row">
         <label class="input-label">时间范围</label>
-        <v-menu v-model="menu" :close-on-content-click="false" transition="scale-transition" offset-y>
-          <template #activator="{ on, attrs }">
-            <v-text-field
-              v-model="dateRangeText"
-              class="input-box"
-              label="请选择时间范围"
-              readonly
-              v-bind="attrs"
-              v-on="on"
-              dense
-              outlined
-              style="max-width: 260px"
-            />
-          </template>
-          <v-date-picker v-model="dateRange" range @change="menu = false" />
-        </v-menu>
+        <input type="date" v-model="dateRange[0]" class="input-box" />
+        <input type="date" v-model="dateRange[1]" class="input-box" />
       </div>
       <div class="input-row">
-        <v-btn class="query-btn" color="primary" @click="query" :loading="loading">查询</v-btn>
+        <button class="query-btn" @click="fetchData" :disabled="loading">查询</button>
       </div>
     </div>
+
+    <!-- 结果区 -->
     <div class="result-area">
       <div class="result-label">结果</div>
-      <v-card class="result-card">
-        <v-row>
-          <v-col cols="12" md="7">
-            <v-chart :option="chartOption" autoresize style="height:320px" />
-          </v-col>
-          <v-col cols="12" md="5">
-            <v-data-table :headers="tableHeaders" :items="tableData" dense />
-          </v-col>
-        </v-row>
-      </v-card>
+      <div class="result-card">
+        <canvas id="chartCanvas" style="height:320px"></canvas>
+      </div>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
-const userId = ref('')
-const userIdOptions = ref([])
-const loadingUserId = ref(false)
-const dateRange = ref([])
-const menu = ref(false)
-const loading = ref(false)
-const chartOption = ref({})
-const tableData = ref([])
-const tableHeaders = [
-  { text: '兴趣类别', value: 'category' },
-  { text: '兴趣度', value: 'score' }
-]
-const dateRangeText = computed(() =>
-  dateRange.value.length === 2 ? `${dateRange.value[0]} ~ ${dateRange.value[1]}` : ''
-)
+import { ref, onMounted, nextTick } from 'vue'
+import Chart from 'chart.js/auto'
 
-onMounted(fetchUserIdOptions)
-async function fetchUserIdOptions() {
-  loadingUserId.value = true
-  // const res = await axios.get('/api/user-id-list')
-  // userIdOptions.value = res.data
-  userIdOptions.value = ['U123', 'U234', 'U345']
-  loadingUserId.value = false
+const userId = ref('')
+const dateRange = ref(['', ''])
+const loading = ref(false)
+let chart = null
+
+onMounted(async () => {
+  nextTick(() => {
+    createChart()
+  })
+})
+
+async function fetchData() {
+  if (!userId.value || dateRange.value[0] === '' || dateRange.value[1] === '') {
+    alert('请输入用户ID和时间范围')
+    return
+  }
+  loading.value = true
+  try {
+    const data = await getInterestProfileData(userId.value, dateRange.value[0], dateRange.value[1])
+    updateChartData(data)
+  } catch (error) {
+    console.error('获取数据失败', error)
+    alert('获取数据失败，请重试')
+  } finally {
+    loading.value = false
+  }
 }
 
-async function query() {
-  loading.value = true
-  setTimeout(() => {
-    tableData.value = [
-      { category: 'sports', score: 10 },
-      { category: 'news', score: 5 }
-    ]
-    chartOption.value = {
-      title: { text: '用户兴趣分布' },
-      tooltip: { trigger: 'item' },
-      series: [
-        {
-          type: 'pie',
-          radius: '50%',
-          data: tableData.value.map(i => ({ name: i.category, value: i.score }))
+function createChart() {
+  const ctx = document.getElementById('chartCanvas').getContext('2d')
+  chart = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: [],
+      datasets: [{
+        label: '兴趣次数',
+        data: [],
+        backgroundColor: 'rgba(255, 99, 132, 0.2)',
+        borderColor: 'rgba(255, 99, 132, 1)',
+        borderWidth: 1
+      }]
+    },
+    options: {
+      scales: {
+        y: {
+          beginAtZero: true
         }
-      ]
+      }
     }
-    loading.value = false
-  }, 500)
+  })
+}
+
+function updateChartData(data) {
+  if (!chart) return
+  chart.data.labels = data.categories
+  chart.data.datasets[0].data = data.counts
+  chart.update()
+}
+
+async function getInterestProfileData(userId, startDate, endDate) {
+  return new Promise((resolve) => {
+    setTimeout(() => {
+      resolve({
+        categories: ['sports', 'news', 'autos'],
+        counts: [10, 20, 15]
+      })
+    }, 500)
+  })
 }
 </script>
 
 <style scoped>
-.page {
+.interest-profile-page {
   max-width: 900px;
   margin: 0 auto;
   padding: 32px 0 0 0;
@@ -135,29 +133,18 @@ async function query() {
 }
 .input-box {
   min-width: 220px;
+  padding: 8px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
 }
 .query-btn {
-  min-width: 120px; /* 最小宽度 */
-  height: 48px; /* 设置按钮高度 */
-  font-size: 1.1rem; /* 字体大小 */
-  font-weight: bold; /* 字体加粗 */
-  background-color: rgb(20, 112, 203); /* 蓝色背景 */
-  color: rgb(255, 255, 255); /* 白色文字 */
-  border-radius: 8px; /* 圆角边框 */
-  box-shadow: 0 2px 8px rgba(33, 150, 243, 0.08); /* 阴影效果 */
-  text-align: center; /* 文字居中 */
-  display: flex; /* 使用 Flexbox 布局 */
-  justify-content: center; /* 水平居中 */
-  align-items: center; /* 垂直居中 */
-  padding: 0 16px; /* 内边距，可根据需要调整 */
-  border: none; /* 移除边框 */
-  cursor: pointer; /* 鼠标悬停时显示指针 */
-  transition: all 0.3s ease; /* 添加过渡效果 */
-}
-
-.query-btn:hover {
-  background-color: rgb(10, 70, 130); /* 鼠标悬停时的背景颜色 */
-  box-shadow: 0 4px 12px rgba(33, 150, 243, 0.16); /* 鼠标悬停时的阴影效果 */
+  padding: 8px 16px;
+  font-size: 1.1rem;
+  font-weight: bold;
+  background-color: rgb(20, 112, 203);
+  color: rgb(255, 255, 255);
+  border-radius: 8px;
+  cursor: pointer;
 }
 .result-area {
   margin-top: 18px;

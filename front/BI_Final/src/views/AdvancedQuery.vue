@@ -1,175 +1,130 @@
 <template>
-  <div class="page">
+  <div class="advanced-query-page">
+    <!-- 输入区 -->
     <div class="input-area">
       <div class="input-row">
+        <label class="input-label">开始日期</label>
+        <input type="date" v-model="startDate" class="input-box" />
+      </div>
+      <div class="input-row">
+        <label class="input-label">结束日期</label>
+        <input type="date" v-model="endDate" class="input-box" />
+      </div>
+      <div class="input-row">
+        <label class="input-label">新闻分类</label>
+        <input type="text" v-model="category" class="input-box" placeholder="请输入新闻分类" />
+      </div>
+      <div class="input-row">
+        <label class="input-label">新闻主题</label>
+        <input type="text" v-model="topic" class="input-box" placeholder="请输入新闻主题" />
+      </div>
+      <div class="input-row">
+        <label class="input-label">新闻标题长度</label>
+        <input type="number" v-model="minTitleLength" class="input-box" placeholder="最小长度" style="width: 150px;" />
+        至
+        <input type="number" v-model="maxTitleLength" class="input-box" placeholder="最大长度" style="width: 150px;" />
+      </div>
+      <div class="input-row">
+        <label class="input-label">新闻内容长度</label>
+        <input type="number" v-model="minContentLength" class="input-box" placeholder="最小长度" style="width: 150px;" />
+        至
+        <input type="number" v-model="maxContentLength" class="input-box" placeholder="最大长度" style="width: 150px;" />
+      </div>
+      <div class="input-row">
         <label class="input-label">用户ID</label>
-        <v-select
-          v-model="userId"
-          :items="userIdOptions"
-          class="input-box"
-          dense
-          outlined
-          placeholder="请选择用户ID"
-          :loading="loadingUserId"
-          style="max-width: 180px"
-        />
-        <label class="input-label">新闻ID</label>
-        <v-select
-          v-model="newsId"
-          :items="newsIdOptions"
-          class="input-box"
-          dense
-          outlined
-          placeholder="请选择新闻ID"
-          :loading="loadingNewsId"
-          style="max-width: 180px"
-        />
+        <input type="text" v-model="userId" class="input-box" placeholder="请输入用户ID" />
       </div>
       <div class="input-row">
-        <label class="input-label">类别</label>
-        <v-select
-          v-model="categories"
-          :items="categoryOptions"
-          multiple
-          chips
-          class="input-box"
-          dense
-          outlined
-          placeholder="请选择类别"
-          :loading="loadingCategory"
-          style="max-width: 220px"
-        />
-        <label class="input-label">标题长度</label>
-        <v-text-field
-          v-model="titleLength"
-          class="input-box"
-          dense
-          outlined
-          placeholder="标题长度"
-          style="max-width: 120px"
-        />
-        <label class="input-label">正文长度</label>
-        <v-text-field
-          v-model="contentLength"
-          class="input-box"
-          dense
-          outlined
-          placeholder="正文长度"
-          style="max-width: 120px"
-        />
-      </div>
-      <div class="input-row">
-        <label class="input-label">时间范围</label>
-        <v-menu v-model="menu" :close-on-content-click="false" transition="scale-transition" offset-y>
-          <template #activator="{ on, attrs }">
-            <v-text-field
-              v-model="dateRangeText"
-              class="input-box"
-              label="请选择时间范围"
-              readonly
-              v-bind="attrs"
-              v-on="on"
-              dense
-              outlined
-              style="max-width: 260px"
-            />
-          </template>
-          <v-date-picker v-model="dateRange" range @change="menu = false" />
-        </v-menu>
-        <v-btn class="query-btn" color="primary" @click="query" :loading="loading">查询</v-btn>
+        <button class="query-btn" @click="fetchData" :disabled="loading">查询</button>
       </div>
     </div>
+
+    <!-- 结果区 -->
     <div class="result-area">
-      <div class="result-label">结果</div>
-      <v-card class="result-card">
-        <v-row>
-          <v-col cols="12" md="7">
-            <v-chart :option="chartOption" autoresize style="height:320px" />
-          </v-col>
-          <v-col cols="12" md="5">
-            <v-data-table :headers="tableHeaders" :items="tableData" dense />
-          </v-col>
-        </v-row>
-      </v-card>
+      <div class="result-label">查询结果</div>
+      <div class="result-card">
+        <table v-if="queryResults.length">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>用户ID</th>
+              <th>新闻ID</th>
+              <th>事件类型</th>
+              <th>事件时间</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="result in queryResults" :key="result.id">
+              <td>{{ result.id }}</td>
+              <td>{{ result.user_id }}</td>
+              <td>{{ result.news_id }}</td>
+              <td>{{ result.event_type }}</td>
+              <td>{{ result.event_time }}</td>
+            </tr>
+          </tbody>
+        </table>
+        <p v-else>没有查询结果</p>
+      </div>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
-const userId = ref('')
-const userIdOptions = ref([])
-const loadingUserId = ref(false)
-const newsId = ref('')
-const newsIdOptions = ref([])
-const loadingNewsId = ref(false)
-const categories = ref([])
-const categoryOptions = ref([])
-const loadingCategory = ref(false)
-const titleLength = ref('')
-const contentLength = ref('')
-const dateRange = ref([])
-const menu = ref(false)
-const loading = ref(false)
-const chartOption = ref({})
-const tableData = ref([])
-const tableHeaders = [
-  { text: '新闻ID', value: 'news_id' },
-  { text: '标题', value: 'title' },
-  { text: '类别', value: 'category' },
-  { text: '曝光', value: 'impressions' },
-  { text: '点击', value: 'clicks' }
-]
-const dateRangeText = computed(() =>
-  dateRange.value.length === 2 ? `${dateRange.value[0]} ~ ${dateRange.value[1]}` : ''
-)
+import { ref, onMounted } from 'vue'
 
-onMounted(() => {
-  fetchUserIdOptions()
-  fetchNewsIdOptions()
-  fetchCategoryOptions()
-})
-async function fetchUserIdOptions() {
-  loadingUserId.value = true
-  userIdOptions.value = ['U123', 'U234', 'U345']
-  loadingUserId.value = false
-}
-async function fetchNewsIdOptions() {
-  loadingNewsId.value = true
-  newsIdOptions.value = ['N12345', 'N23456', 'N34567']
-  loadingNewsId.value = false
-}
-async function fetchCategoryOptions() {
-  loadingCategory.value = true
-  categoryOptions.value = [
-    'sports','news','autos','foodanddrink','finance','music','lifestyle','weather','health','video','movies','tv','travel','entertainment','kids','europe','northamerica','adexperience'
-  ]
-  loadingCategory.value = false
-}
-async function query() {
+const startDate = ref('')
+const endDate = ref('')
+const category = ref('')
+const topic = ref('')
+const minTitleLength = ref(null)
+const maxTitleLength = ref(null)
+const minContentLength = ref(null)
+const maxContentLength = ref(null)
+const userId = ref('')
+const loading = ref(false)
+const queryResults = ref([])
+
+const fetchData = async () => {
+  if (!startDate.value || !endDate.value) {
+    alert('请选择开始和结束日期')
+    return
+  }
   loading.value = true
-  setTimeout(() => {
-    tableData.value = [
-      { news_id: 'N1', title: 'Title1', category: 'sports', impressions: 100, clicks: 20 },
-      { news_id: 'N2', title: 'Title2', category: 'news', impressions: 120, clicks: 30 }
-    ]
-    chartOption.value = {
-      title: { text: '高级查询结果' },
-      tooltip: { trigger: 'axis' },
-      xAxis: { type: 'category', data: tableData.value.map(i => i.title) },
-      yAxis: { type: 'value' },
-      series: [
-        { name: '曝光', type: 'bar', data: tableData.value.map(i => i.impressions) },
-        { name: '点击', type: 'bar', data: tableData.value.map(i => i.clicks) }
-      ]
-    }
+  try {
+    const data = await getAdvancedQueryData({
+      startDate,
+      endDate,
+      category,
+      topic,
+      minTitleLength,
+      maxTitleLength,
+      minContentLength,
+      maxContentLength,
+      userId
+    })
+    queryResults.value = data
+  } catch (error) {
+    console.error('查询失败', error)
+    alert('查询失败，请重试')
+  } finally {
     loading.value = false
-  }, 500)
+  }
+}
+
+async function getAdvancedQueryData(params) {
+  return new Promise((resolve) => {
+    setTimeout(() => {
+      resolve([
+        { id: 1, user_id: 'U1', news_id: 'N1', event_type: 'CLICK', event_time: '2023-06-01 12:00:00' },
+        // 模拟更多查询结果...
+      ])
+    }, 500)
+  })
 }
 </script>
 
 <style scoped>
-.page {
+.advanced-query-page {
   max-width: 900px;
   margin: 0 auto;
   padding: 32px 0 0 0;
@@ -178,7 +133,7 @@ async function query() {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 22px;
+  gap: 10px; /* 减小间距 */
   margin-bottom: 32px;
   background: #f5faff;
   border-radius: 12px;
@@ -189,7 +144,7 @@ async function query() {
   display: flex;
   justify-content: center;
   align-items: center;
-  gap: 18px;
+  gap: 8px; /* 减小内部元素间距 */
   margin-bottom: 0;
 }
 .input-label {
@@ -200,29 +155,18 @@ async function query() {
 }
 .input-box {
   min-width: 220px;
+  padding: 8px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
 }
 .query-btn {
-  min-width: 120px; /* 最小宽度 */
-  height: 48px; /* 设置按钮高度 */
-  font-size: 1.1rem; /* 字体大小 */
-  font-weight: bold; /* 字体加粗 */
-  background-color: rgb(20, 112, 203); /* 蓝色背景 */
-  color: rgb(255, 255, 255); /* 白色文字 */
-  border-radius: 8px; /* 圆角边框 */
-  box-shadow: 0 2px 8px rgba(33, 150, 243, 0.08); /* 阴影效果 */
-  text-align: center; /* 文字居中 */
-  display: flex; /* 使用 Flexbox 布局 */
-  justify-content: center; /* 水平居中 */
-  align-items: center; /* 垂直居中 */
-  padding: 0 16px; /* 内边距，可根据需要调整 */
-  border: none; /* 移除边框 */
-  cursor: pointer; /* 鼠标悬停时显示指针 */
-  transition: all 0.3s ease; /* 添加过渡效果 */
-}
-
-.query-btn:hover {
-  background-color: rgb(10, 70, 130); /* 鼠标悬停时的背景颜色 */
-  box-shadow: 0 4px 12px rgba(33, 150, 243, 0.16); /* 鼠标悬停时的阴影效果 */
+  padding: 8px 16px;
+  font-size: 1.1rem;
+  font-weight: bold;
+  background-color: rgb(20, 112, 203);
+  color: rgb(255, 255, 255);
+  border-radius: 8px;
+  cursor: pointer;
 }
 .result-area {
   margin-top: 18px;
@@ -237,5 +181,17 @@ async function query() {
   padding: 18px 18px 8px 18px;
   border-radius: 12px;
   box-shadow: 0 2px 8px rgba(33, 150, 243, 0.08);
+}
+table {
+  width: 100%;
+  border-collapse: collapse;
+}
+th, td {
+  border: 1px solid #ddd;
+  padding: 8px;
+  text-align: left;
+}
+th {
+  background-color: #f2f2f2;
 }
 </style>

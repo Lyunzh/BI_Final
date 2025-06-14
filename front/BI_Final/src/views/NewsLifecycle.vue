@@ -4,110 +4,62 @@
     <div class="input-area">
       <div class="input-row">
         <label class="input-label">新闻ID</label>
-        <v-select
-          v-model="newsId"
-          :items="newsIdOptions"
-          class="input-box"
-          dense
-          outlined
-          placeholder="请选择新闻ID"
-          :loading="loadingNewsId"
-          style="max-width: 260px"
-        />
+        <select v-model="newsId" class="input-box">
+          <option v-for="option in newsIdOptions" :key="option" :value="option">
+            {{ option }}
+          </option>
+        </select>
       </div>
       <div class="input-row">
         <label class="input-label">时间范围</label>
-        <v-menu
-          v-model="menu"
-          :close-on-content-click="false"
-          transition="scale-transition"
-          offset-y
-        >
-          <template #activator="{ on, attrs }">
-            <v-text-field
-              v-model="dateRangeText"
-              class="input-box"
-              label="请选择时间范围"
-              readonly
-              v-bind="attrs"
-              v-on="on"
-              dense
-              outlined
-              style="max-width: 260px"
-            />
-          </template>
-          <v-date-picker v-model="dateRange" range @change="menu = false" />
-        </v-menu>
+        <input type="date" v-model="dateRange[0]" class="input-box" />
+        <input type="date" v-model="dateRange[1]" class="input-box" />
       </div>
       <div class="input-row">
-        <v-btn class="query-btn" color="primary" @click="fetchData" :loading="loading">查询</v-btn>
+        <button class="query-btn" @click="fetchData" :disabled="loading">查询</button>
       </div>
     </div>
 
     <!-- 结果区 -->
     <div class="result-area">
       <div class="result-label">结果</div>
-      <v-card class="result-card">
-        <v-row>
-          <v-col cols="12">
-            <v-chart :option="chartOption" autoresize style="height:320px" />
-          </v-col>
-        </v-row>
-      </v-card>
+      <div class="result-card">
+        <canvas id="chartCanvas" style="height:320px"></canvas>
+      </div>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
-// import axios from 'axios'
+import { ref, computed, onMounted, nextTick } from 'vue'
 
 const newsId = ref('')
 const newsIdOptions = ref([])
-const loadingNewsId = ref(false)
-
-const dateRange = ref([])
-const menu = ref(false)
 const loading = ref(false)
-const chartOption = ref({})
+let chart = null
 
-const dateRangeText = computed(() =>
-  dateRange.value.length === 2 ? `${dateRange.value[0]} ~ ${dateRange.value[1]}` : ''
-)
+const dateRange = ref(['', ''])
 
 onMounted(async () => {
   await fetchNewsIdOptions()
+  nextTick(() => {
+    createChart()
+  })
 })
 
 async function fetchNewsIdOptions() {
-  loadingNewsId.value = true
-  // const res = await axios.get('/api/news-id-list')
-  // newsIdOptions.value = res.data
-  // mock数据
   newsIdOptions.value = ['N12345', 'N23456', 'N34567']
-  loadingNewsId.value = false
 }
 
 async function fetchData() {
-  if (!newsId.value || dateRange.value.length !== 2) {
+  if (!newsId.value || dateRange.value[0] === '' || dateRange.value[1] === '') {
     alert('请选择新闻ID和时间范围')
     return
   }
   loading.value = true
   try {
-    // 模拟从数据库获取数据
     const data = await getLifecycleData(newsId.value, dateRange.value[0], dateRange.value[1])
-    chartOption.value = {
-      title: { text: '新闻生命周期趋势' },
-      tooltip: { trigger: 'axis' },
-      xAxis: { type: 'category', data: data.periods },
-      yAxis: { type: 'value' },
-      series: [
-        { name: '曝光', type: 'bar', data: data.impressions },
-        { name: '点击', type: 'bar', data: data.clicks },
-        { name: '点击率', type: 'line', data: data.ctrs }
-      ]
-    }
+    updateChartData(data)
   } catch (error) {
     console.error('获取数据失败', error)
     alert('获取数据失败，请重试')
@@ -116,15 +68,43 @@ async function fetchData() {
   }
 }
 
-// 模拟从数据库获取数据的函数
+function createChart() {
+  const ctx = document.getElementById('chartCanvas').getContext('2d')
+  chart = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: [],
+      datasets: [{
+        label: '曝光次数',
+        data: [],
+        backgroundColor: 'rgba(255, 99, 132, 0.2)',
+        borderColor: 'rgba(255, 99, 132, 1)',
+        borderWidth: 1
+      }]
+    },
+    options: {
+      scales: {
+        y: {
+          beginAtZero: true
+        }
+      }
+    }
+  })
+}
+
+function updateChartData(data) {
+  if (!chart) return
+  chart.data.labels = data.periods
+  chart.data.datasets[0].data = data.impressions
+  chart.update()
+}
+
 async function getLifecycleData(newsId, startDate, endDate) {
   return new Promise((resolve) => {
     setTimeout(() => {
       resolve({
         periods: ['2023-06-01', '2023-06-02'],
-        impressions: [100, 120],
-        clicks: [20, 30],
-        ctrs: [20, 25]
+        impressions: [100, 120]
       })
     }, 500)
   })
@@ -163,29 +143,18 @@ async function getLifecycleData(newsId, startDate, endDate) {
 }
 .input-box {
   min-width: 220px;
+  padding: 8px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
 }
 .query-btn {
-  min-width: 120px; /* 最小宽度 */
-  height: 48px; /* 设置按钮高度 */
-  font-size: 1.1rem; /* 字体大小 */
-  font-weight: bold; /* 字体加粗 */
-  background-color: rgb(20, 112, 203); /* 蓝色背景 */
-  color: rgb(255, 255, 255); /* 白色文字 */
-  border-radius: 8px; /* 圆角边框 */
-  box-shadow: 0 2px 8px rgba(33, 150, 243, 0.08); /* 阴影效果 */
-  text-align: center; /* 文字居中 */
-  display: flex; /* 使用 Flexbox 布局 */
-  justify-content: center; /* 水平居中 */
-  align-items: center; /* 垂直居中 */
-  padding: 0 16px; /* 内边距，可根据需要调整 */
-  border: none; /* 移除边框 */
-  cursor: pointer; /* 鼠标悬停时显示指针 */
-  transition: all 0.3s ease; /* 添加过渡效果 */
-}
-
-.query-btn:hover {
-  background-color: rgb(10, 70, 130); /* 鼠标悬停时的背景颜色 */
-  box-shadow: 0 4px 12px rgba(33, 150, 243, 0.16); /* 鼠标悬停时的阴影效果 */
+  padding: 8px 16px;
+  font-size: 1.1rem;
+  font-weight: bold;
+  background-color: rgb(20, 112, 203);
+  color: rgb(255, 255, 255);
+  border-radius: 8px;
+  cursor: pointer;
 }
 .result-area {
   margin-top: 18px;

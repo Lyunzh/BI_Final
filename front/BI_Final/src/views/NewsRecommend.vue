@@ -1,96 +1,71 @@
 <template>
-  <div class="page">
+  <div class="recommendation-page">
+    <!-- 输入区 -->
     <div class="input-area">
       <div class="input-row">
         <label class="input-label">用户ID</label>
-        <v-select
-          v-model="userId"
-          :items="userIdOptions"
-          class="input-box"
-          dense
-          outlined
-          placeholder="请选择用户ID"
-          :loading="loadingUserId"
-          style="max-width: 260px"
-        />
+        <input type="text" v-model="userId" class="input-box" placeholder="请输入用户ID" />
       </div>
       <div class="input-row">
-        <label class="input-label">主题/类别</label>
-        <v-select
-          v-model="category"
-          :items="categoryOptions"
-          class="input-box"
-          dense
-          outlined
-          placeholder="请选择主题/类别"
-          :loading="loadingCategory"
-          style="max-width: 260px"
-        />
-      </div>
-      <div class="input-row">
-        <v-btn class="query-btn" color="primary" @click="query" :loading="loading">推荐</v-btn>
+        <button class="query-btn" @click="fetchRecommendations" :disabled="loading">获取推荐</button>
       </div>
     </div>
+
+    <!-- 结果区 -->
     <div class="result-area">
-      <div class="result-label">结果</div>
-      <v-card class="result-card">
-        <v-data-table :headers="tableHeaders" :items="tableData" dense />
-      </v-card>
+      <div class="result-label">推荐新闻</div>
+      <div class="result-card">
+        <ul v-if="recommendations.length">
+          <li v-for="news in recommendations" :key="news.news_id">
+            <strong>{{ news.title }}</strong><br />
+            <small>{{ news.news_id }}</small>
+          </li>
+        </ul>
+        <p v-else>没有推荐新闻</p>
+      </div>
     </div>
   </div>
 </template>
 
 <script setup>
 import { ref, onMounted } from 'vue'
-const userId = ref('')
-const userIdOptions = ref([])
-const loadingUserId = ref(false)
-const category = ref('')
-const categoryOptions = ref([])
-const loadingCategory = ref(false)
-const loading = ref(false)
-const tableData = ref([])
-const tableHeaders = [
-  { text: '新闻ID', value: 'news_id' },
-  { text: '标题', value: 'title' },
-  { text: '类别', value: 'category' },
-  { text: '发布时间', value: 'create_time' }
-]
 
-onMounted(() => {
-  fetchUserIdOptions()
-  fetchCategoryOptions()
-})
-async function fetchUserIdOptions() {
-  loadingUserId.value = true
-  // const res = await axios.get('/api/user-id-list')
-  // userIdOptions.value = res.data
-  userIdOptions.value = ['U123', 'U234', 'U345']
-  loadingUserId.value = false
-}
-async function fetchCategoryOptions() {
-  loadingCategory.value = true
-  // const res = await axios.get('/api/category-list')
-  // categoryOptions.value = res.data
-  categoryOptions.value = [
-    'sports','news','autos','foodanddrink','finance','music','lifestyle','weather','health','video','movies','tv','travel','entertainment','kids','europe','northamerica','adexperience'
-  ]
-  loadingCategory.value = false
-}
-async function query() {
+const userId = ref('')
+const loading = ref(false)
+const recommendations = ref([])
+
+const fetchRecommendations = async () => {
+  if (!userId.value) {
+    alert('请输入用户ID')
+    return
+  }
   loading.value = true
-  setTimeout(() => {
-    tableData.value = [
-      { news_id: 'N1', title: 'Title1', category: 'sports', create_time: '2023-06-01' },
-      { news_id: 'N2', title: 'Title2', category: 'news', create_time: '2023-06-02' }
-    ]
+  try {
+    const data = await getRecommendationData(userId.value)
+    recommendations.value = data
+  } catch (error) {
+    console.error('获取推荐新闻失败', error)
+    alert('获取推荐新闻失败，请重试')
+  } finally {
     loading.value = false
-  }, 500)
+  }
+}
+
+async function getRecommendationData(userId) {
+  return new Promise((resolve) => {
+    setTimeout(() => {
+      resolve([
+        { news_id: 'N1', title: '新闻标题1' },
+        { news_id: 'N2', title: '新闻标题2' },
+        { news_id: 'N3', title: '新闻标题3' }
+      ])
+    }, 500)
+  })
 }
 </script>
 
 <style scoped>
-.page {
+.recommendation-page {
   max-width: 900px;
   margin: 0 auto;
   padding: 32px 0 0 0;
@@ -121,29 +96,18 @@ async function query() {
 }
 .input-box {
   min-width: 220px;
+  padding: 8px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
 }
 .query-btn {
-  min-width: 120px; /* 最小宽度 */
-  height: 48px; /* 设置按钮高度 */
-  font-size: 1.1rem; /* 字体大小 */
-  font-weight: bold; /* 字体加粗 */
-  background-color: rgb(20, 112, 203); /* 蓝色背景 */
-  color: rgb(255, 255, 255); /* 白色文字 */
-  border-radius: 8px; /* 圆角边框 */
-  box-shadow: 0 2px 8px rgba(33, 150, 243, 0.08); /* 阴影效果 */
-  text-align: center; /* 文字居中 */
-  display: flex; /* 使用 Flexbox 布局 */
-  justify-content: center; /* 水平居中 */
-  align-items: center; /* 垂直居中 */
-  padding: 0 16px; /* 内边距，可根据需要调整 */
-  border: none; /* 移除边框 */
-  cursor: pointer; /* 鼠标悬停时显示指针 */
-  transition: all 0.3s ease; /* 添加过渡效果 */
-}
-
-.query-btn:hover {
-  background-color: rgb(10, 70, 130); /* 鼠标悬停时的背景颜色 */
-  box-shadow: 0 4px 12px rgba(33, 150, 243, 0.16); /* 鼠标悬停时的阴影效果 */
+  padding: 8px 16px;
+  font-size: 1.1rem;
+  font-weight: bold;
+  background-color: rgb(20, 112, 203);
+  color: rgb(255, 255, 255);
+  border-radius: 8px;
+  cursor: pointer;
 }
 .result-area {
   margin-top: 18px;
@@ -158,5 +122,12 @@ async function query() {
   padding: 18px 18px 8px 18px;
   border-radius: 12px;
   box-shadow: 0 2px 8px rgba(33, 150, 243, 0.08);
+}
+ul {
+  list-style-type: none;
+  padding: 0;
+}
+li {
+  margin-bottom: 10px;
 }
 </style>
