@@ -1,10 +1,11 @@
 <template>
-<NavBar />
+
   
  <div class="app-header">
     <span class="app-title">新闻实时动态分析系统</span>
     <button class="clear-btn" @click="refreshAll">清除数据</button>
   </div>
+  <NavBar />
   <router-view />
 </template>
 
