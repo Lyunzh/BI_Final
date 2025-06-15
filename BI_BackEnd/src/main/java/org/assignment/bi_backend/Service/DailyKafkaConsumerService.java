@@ -2,120 +2,114 @@ package org.assignment.bi_backend.Service;
 
 import org.assignment.bi_backend.Entity.EventType;
 import org.assignment.bi_backend.Entity.NewsMetadata;
-import org.assignment.bi_backend.Entity.UserBehavior;
-import org.assignment.bi_backend.Repository.UserBehaviorRepository;
-import org.assignment.bi_backend.Repository.NewsMetadataRepository;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
-import org.apache.kafka.common.TopicPartition;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
+import com.opencsv.CSVParser;
+import com.opencsv.CSVParserBuilder;
 
+import java.sql.Timestamp;
 import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
-import java.util.stream.Collectors;
 
 @Service
 public class DailyKafkaConsumerService {
-    @Autowired
-    private UserBehaviorRepository behaviorRepo;
+    private static final String TOPIC_PREFIX = "impression_";
+    private static final DateTimeFormatter CSV_DATE_FMT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+    private static final int BATCH_SIZE = 2000;
+    private static final String INSERT_SQL =
+            "INSERT INTO news_behavior_wide(" +
+                    "news_id, title, content, category, topic, title_length, content_length, news_create_time, user_id, event_type, event_time) " +
+                    "VALUES (?,?,?,?,?,?,?,?,?,?,?)";
 
     @Autowired
-    private NewsMetadataRepository metadataRepo;
+    private JdbcTemplate jdbc;
 
     @Autowired
     private NewsMetadataLoader loader;
 
-    private static final String TOPIC = "impression_logs";
-    private static final DateTimeFormatter DT_FMT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
-
     public void consumeForDate(LocalDate date) {
+        String topic = TOPIC_PREFIX + date.toString().replace("-", "");
         Properties props = new Properties();
         props.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, "localhost:9092");
-        props.put(ConsumerConfig.GROUP_ID_CONFIG, "impression-trigger-consumer");
+        props.put(ConsumerConfig.GROUP_ID_CONFIG, "impression-wide-consumer");
         props.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, "org.apache.kafka.common.serialization.StringDeserializer");
         props.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, "org.apache.kafka.common.serialization.StringDeserializer");
         props.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
+        props.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, "false");
+        props.put(ConsumerConfig.MAX_POLL_RECORDS_CONFIG, "5000");
+        props.put(ConsumerConfig.FETCH_MIN_BYTES_CONFIG, "1048576");
+        props.put(ConsumerConfig.FETCH_MAX_WAIT_MS_CONFIG, "200");
 
-        List<TopicPartition> parts;
-        try (KafkaConsumer<String,String> consumer = new KafkaConsumer<>(props)) {
-            parts = consumer.partitionsFor(TOPIC)
-                            .stream()
-                            .map(p -> new TopicPartition(TOPIC, p.partition()))
-                            .collect(Collectors.toList());
-            consumer.assign(parts);
-            consumer.seekToBeginning(parts);
+        // 使用 OpenCSV 解析器处理引号及字段分隔
+        CSVParser parser = new CSVParserBuilder()
+                .withSeparator(',')
+                .withQuoteChar('"')
+                .build();
 
-            LocalDateTime start = date.atStartOfDay();
-            LocalDateTime end = start.plusDays(1);
+        try (KafkaConsumer<String, String> consumer = new KafkaConsumer<>(props)) {
+            consumer.subscribe(Collections.singletonList(topic));
+            List<Object[]> batchArgs = new ArrayList<>(BATCH_SIZE);
 
-            // Preload existing metadata IDs to avoid N+1 queries
-            Set<String> allIds = new HashSet<>();
-            List<ConsumerRecord<String, String>> allRecs = new ArrayList<>();
-            ConsumerRecords<String, String> recs;
-            do {
-                recs = consumer.poll(Duration.ofSeconds(1));
+            while (true) {
+                ConsumerRecords<String, String> recs = consumer.poll(Duration.ofSeconds(1));
+                if (recs.isEmpty()) break;
+
                 for (ConsumerRecord<String, String> rec : recs) {
-                    String[] f = rec.value().split(",");
-                    if ("user_id".equalsIgnoreCase(f[0])) {
+                    String[] f;
+                    try {
+                        f = parser.parseLine(rec.value());
+                    } catch (Exception e) {
+                        // 解析失败，跳过
                         continue;
                     }
-                    LocalDateTime ts = LocalDateTime.parse(f[2], DT_FMT);
-                    if (!ts.isBefore(start) && !ts.isAfter(end)) {
-                        allRecs.add(rec);
-                        allIds.add(f[1]);
-                    }
-                }
-            } while (!recs.isEmpty());
+                    if (f.length < 3 || "start_time".equalsIgnoreCase(f[2])) continue; // 跳过表头
 
-            // Batch load existing metadata
-            Set<String> existingMeta = metadataRepo.findAllById(allIds)
-                    .stream().map(NewsMetadata::getNewsId).collect(Collectors.toSet());
+                    String userId = f[0].trim();
+                    String newsId = f[1].trim();
+                    LocalDateTime eventTime = LocalDateTime.parse(f[2].trim(), CSV_DATE_FMT);
 
-            // Prepare batches
-            List<UserBehavior> behaviorBatch = new ArrayList<>();
-            List<NewsMetadata> metaBatch = new ArrayList<>();
+                    NewsMetadata md = loader.get(newsId);
+                    if (md == null) continue;
 
-            for (ConsumerRecord<String, String> rec : allRecs) {
-                String[] f = rec.value().split(",");
-                if ("user_id".equalsIgnoreCase(f[0])) {
-                    continue;
-                }
-                LocalDateTime ts = LocalDateTime.parse(f[2], DT_FMT);
-                String userId = f[0], newsId = f[1];
+                    Object[] params = new Object[] {
+                            newsId,
+                            md.getTitle(),
+                            md.getContent(),
+                            md.getCategory(),
+                            md.getTopic(),
+                            md.getTitleLength(),
+                            md.getContentLength(),
+                            Timestamp.valueOf(md.getNewsCreateTime() != null ? md.getNewsCreateTime() : eventTime),
+                            userId,
+                            EventType.valueOf("IMPRESSION").name(),
+                            Timestamp.valueOf(eventTime)
+                    };
 
-                // Behavior dedupe and batch
-                UserBehavior ub = new UserBehavior();
-                ub.setUserId(userId);
-                ub.setNewsId(newsId);
-                ub.setEventType(EventType.IMPRESSION);
-                ub.setEventTime(ts);
-                behaviorBatch.add(ub);
-
-                // Metadata batch
-                if (!existingMeta.contains(newsId)) {
-                    NewsMetadata m = loader.get(newsId);
-                    if (m != null) {
-                        m.setCreateTime(ts);
-                        metaBatch.add(m);
-                        existingMeta.add(newsId);
+                    batchArgs.add(params);
+                    if (batchArgs.size() >= BATCH_SIZE) {
+                        saveBatch(batchArgs);
+                        batchArgs.clear();
+                        consumer.commitAsync();
                     }
                 }
             }
 
-            // Save in batches
-            if (!metaBatch.isEmpty()) {
-                metadataRepo.saveAll(metaBatch);
+            if (!batchArgs.isEmpty()) {
+                saveBatch(batchArgs);
+                consumer.commitAsync();
             }
-            if (!behaviorBatch.isEmpty()) {
-                behaviorRepo.saveAll(behaviorBatch);
-            }
-
         }
+    }
+
+    private void saveBatch(List<Object[]> argsList) {
+        jdbc.batchUpdate(INSERT_SQL, argsList);
     }
 }
