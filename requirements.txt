@@ -1,0 +1,31 @@
+# 基础依赖
+pyspark==3.5.0
+kafka-python==2.0.2
+streamlit==1.31.0
+plotly==5.18.0
+pandas==2.2.0
+numpy==1.26.3
+
+# 数据处理
+scikit-learn==1.4.0
+jieba==0.42.1
+networkx==3.2.1
+
+# AI分析
+openai==1.12.0
+
+# 工具
+python-dotenv==1.0.0
+tqdm==4.66.1
+
+# Kafka相关
+confluent-kafka==2.3.0
+
+# Streamlit相关
+findspark==2.0.1
+
+# 数据处理相关
+python-dateutil==2.8.2
+
+# OpenManus相关
+openmanus==0.1.0  # 请根据实际版本调整 
