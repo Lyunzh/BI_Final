@@ -74,25 +74,22 @@
      保存并退出（Ctrl+O 回车 Ctrl+X）
      ```
 
-  3. 运行脚本批量配置 flume agent
+  3. 运行脚本批量配置 flume agent**（只需运行一次）**
 
      ```shell
      ~/BI_script$ sudo chmod +x setup_flume_agent.sh
      ~/BI_script$ sudo ./setup_flume_agent.sh
      ```
 
-  4. 运行脚本流式读取 impression_log.csv 并发送到 log_stream 中：
+  4. 运行脚本流式读取 impression_log.csv 并发送到 log_stream 中：**（只需运行一次）**
      
      ```shell
-     ~/BI_script$ pip3 install pandas
-     ...
-     
      ~/BI_script$ sudo chmod +x start_log_simulator.sh
      ~/BI_script$ sudo ./start_log_simulator.sh
      ```
      
-  5. 运行脚本批量开启 agent 向 kafka 中 sink（记得修改 param 中的参数）
-
+  5. 运行脚本批量开启 agent 向 kafka 中 sink（记得修改 param 中的参数）**（只需运行一次）**
+  
      ```shell
      ~/BI_script$ sudo chmod +x start_flume_agents.sh
      ~/BI_script$ sudo ./start_flume_agents.sh
@@ -101,14 +98,14 @@
      ~/BI_script$ sudo chmod +x stop_flume_agents.sh
      ~/BI_script$ sudo ./stop_flume_agents.sh
      ```
-
+  
   9. 运行 SpringBoot 项目
-
+  
   10. 在 Postman 或 apifox 或使用 curl 访问 http://localhost:8082/api/triggerDay?day=0&startDate=2019-06-13，这里 `day=0` 对应 `2019-06-13`；接口会从 Kafka earliest 开始拉取，只保存这一天（00:00:00–23:59:59）的记录。
       再下一天，需要把 day 改成 1、2、... 最大为 21，对应 `2019-07-04`
 
   11. 检查数据库，看是否有`2019-06-13` 等日期的曝光条目和那些新闻的元数据。
-
+  
 - **MySQL**
   1. 创建数据库 bi_database，字符集 utf8mb4，排序规则 utf8mb4_unicode_ci
   2. 按照数据库设计文档建表

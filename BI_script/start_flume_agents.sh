@@ -24,7 +24,7 @@ for conf_file in "$AGENT_CONF_DIR"/flume-*.conf; do
     err_log="$LOG_DIR/${agent_name}-err.log"
 
     # 启动 Flume agent（后台运行）
-    nohup flume-ng agent \
+    nohup /usr/local/flume/bin/flume-ng agent \
         --conf "$FLUME_CONF_DIR" \
         --conf-file "$conf_file" \
         --name "$agent_name" \
