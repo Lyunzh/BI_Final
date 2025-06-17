@@ -20,6 +20,8 @@
      ~$ wget https://downloads.apache.org/kafka/3.7.2/kafka_2.13-3.7.2.tgz
      ~$ tar xvf kafka_2.13-3.5.1.tgz
      ~$ sudo mv kafka_2.13-3.5.1 /usr/local/kafka
+     
+     找到kafka/config/server.properties，将其中listeners一行取消注释，改为listeners=PLAINTEXT://localhost:9092
      ```
 
   2. 运行脚本启动 kafka 服务（用的 screen）
