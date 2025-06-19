@@ -1,11 +1,6 @@
 package org.assignment.bi_backend.Service;
 
-import org.assignment.bi_backend.Entity.EventType;
-import org.assignment.bi_backend.Entity.NewsMetadata;
-import org.apache.kafka.clients.consumer.ConsumerConfig;
-import org.apache.kafka.clients.consumer.ConsumerRecord;
-import org.apache.kafka.clients.consumer.ConsumerRecords;
-import org.apache.kafka.clients.consumer.KafkaConsumer;
+import org.apache.kafka.clients.consumer.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
@@ -23,30 +18,19 @@ import java.util.*;
 public class DailyKafkaConsumerService {
     private static final String TOPIC_PREFIX = "impression_";
     private static final DateTimeFormatter CSV_DATE_FMT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
-    private static final int BATCH_SIZE = 2000;
-    private static final String INSERT_SQL =
-            "INSERT INTO news_behavior_wide(" +
-                    "news_id, title, content, category, topic, title_length, content_length, news_create_time, user_id, event_type, event_time) " +
-                    "VALUES (?,?,?,?,?,?,?,?,?,?,?)";
+    private static final int BATCH_SIZE = 5000;
+    private static final String INSERT_SQL_UB =
+            "INSERT INTO user_behavior(user_id, news_id, event_time, duration) VALUES (?,?,?,?)";
 
     @Autowired
     private JdbcTemplate jdbc;
 
-    @Autowired
-    private NewsMetadataLoader loader;
-
     public void consumeForDate(LocalDate date) {
         String topic = TOPIC_PREFIX + date.toString().replace("-", "");
-        Properties props = new Properties();
-        props.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, "localhost:9092");
-        props.put(ConsumerConfig.GROUP_ID_CONFIG, "impression-wide-consumer");
-        props.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, "org.apache.kafka.common.serialization.StringDeserializer");
-        props.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, "org.apache.kafka.common.serialization.StringDeserializer");
-        props.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
-        props.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, "false");
-        props.put(ConsumerConfig.MAX_POLL_RECORDS_CONFIG, "5000");
-        props.put(ConsumerConfig.FETCH_MIN_BYTES_CONFIG, "1048576");
-        props.put(ConsumerConfig.FETCH_MAX_WAIT_MS_CONFIG, "200");
+
+        System.out.println("tpc:" + topic);
+
+        Properties props = getProperties();
 
         // 使用 OpenCSV 解析器处理引号及字段分隔
         CSVParser parser = new CSVParserBuilder()
@@ -59,7 +43,8 @@ public class DailyKafkaConsumerService {
             List<Object[]> batchArgs = new ArrayList<>(BATCH_SIZE);
 
             while (true) {
-                ConsumerRecords<String, String> recs = consumer.poll(Duration.ofSeconds(1));
+                ConsumerRecords<String, String> recs = consumer.poll(Duration.ofSeconds(10));
+                System.out.println("Polled recs length: " + recs.count()); // debug
                 if (recs.isEmpty()) break;
 
                 for (ConsumerRecord<String, String> rec : recs) {
@@ -75,41 +60,60 @@ public class DailyKafkaConsumerService {
                     String userId = f[0].trim();
                     String newsId = f[1].trim();
                     LocalDateTime eventTime = LocalDateTime.parse(f[2].trim(), CSV_DATE_FMT);
-
-                    NewsMetadata md = loader.get(newsId);
-                    if (md == null) continue;
+                    int duration = Integer.parseInt(f[3].trim());
 
                     Object[] params = new Object[] {
-                            newsId,
-                            md.getTitle(),
-                            md.getContent(),
-                            md.getCategory(),
-                            md.getTopic(),
-                            md.getTitleLength(),
-                            md.getContentLength(),
-                            Timestamp.valueOf(md.getNewsCreateTime() != null ? md.getNewsCreateTime() : eventTime),
                             userId,
-                            EventType.valueOf("IMPRESSION").name(),
-                            Timestamp.valueOf(eventTime)
+                            newsId,
+                            Timestamp.valueOf(eventTime),
+                            duration
                     };
+
+                    System.out.println(Arrays.toString(params)); // debug
 
                     batchArgs.add(params);
                     if (batchArgs.size() >= BATCH_SIZE) {
-                        saveBatch(batchArgs);
+                        // saveBatch(batchArgs);
                         batchArgs.clear();
-                        consumer.commitAsync();
+                        // consumer.commitAsync(); // debug
                     }
                 }
             }
 
             if (!batchArgs.isEmpty()) {
-                saveBatch(batchArgs);
-                consumer.commitAsync();
+                System.out.println("while(true) exit."); // debug
+                // saveBatch(batchArgs);
+                // consumer.commitAsync(); // debug
             }
         }
+
+        final String UPDATE_NM_TIME =
+                "UPDATE news_metadata m " +
+                        "JOIN ( " +
+                        "    SELECT news_id, MIN(event_time) AS first_time " +
+                        "    FROM user_behavior " +
+                        "    GROUP BY news_id " +
+                        ") ub ON m.news_id = ub.news_id " +
+                        "SET m.create_time = ub.first_time " +
+                        "WHERE m.create_time IS NULL";
+        jdbc.update(UPDATE_NM_TIME);
+    }
+
+    private static Properties getProperties() {
+        Properties props = new Properties();
+        props.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, "172.22.105.28:9092");
+        props.put(ConsumerConfig.GROUP_ID_CONFIG, "impression-log-consumer-1");
+        props.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, "org.apache.kafka.common.serialization.StringDeserializer");
+        props.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, "org.apache.kafka.common.serialization.StringDeserializer");
+        props.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
+        props.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, "false");
+        props.put(ConsumerConfig.MAX_POLL_RECORDS_CONFIG, "1000");
+        props.put(ConsumerConfig.MAX_PARTITION_FETCH_BYTES_CONFIG, "1048576");
+        props.put(ConsumerConfig.FETCH_MAX_WAIT_MS_CONFIG, "30000");
+        return props;
     }
 
     private void saveBatch(List<Object[]> argsList) {
-        jdbc.batchUpdate(INSERT_SQL, argsList);
+        jdbc.batchUpdate(INSERT_SQL_UB, argsList);
     }
 }

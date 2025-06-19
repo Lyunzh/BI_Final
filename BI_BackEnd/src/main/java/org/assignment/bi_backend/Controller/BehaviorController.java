@@ -17,7 +17,7 @@ import java.util.Map;
 @RestController
 public class BehaviorController {
     @Autowired
-    private DailyKafkaConsumerService wideService;
+    private DailyKafkaConsumerService consumerService;
 
     @GetMapping("/api/triggerDay")
     public ResponseEntity<Map<String, Object>> triggerDay(
@@ -29,7 +29,7 @@ public class BehaviorController {
         LocalDate targetDate = startDate.plusDays(day);
 
         // 执行消费与落库
-        wideService.consumeForDate(targetDate);
+        consumerService.consumeForDate(targetDate);
 
         // 记录结束时间，计算耗时
         Instant endInstant = Instant.now();

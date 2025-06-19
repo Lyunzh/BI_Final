@@ -117,7 +117,7 @@
 - **SpringBoot**
   1. IDEA 创建 SpringBoot3.5.0 项目（java17）
   2. 添加依赖项（pom.xml）
-  3. application.properties 中数据库连接字符串、bootstrap-server修改一下
+  3. application.properties 中数据库连接字符串修改一下
   4. application.properties 中 news.file.path 改成你自己的 news.tsv 的路径（已附在文件中）
   4. DailyKafkaConsumerService.java中`props.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, "172.19.63.218:9092");`改成自己的
 
