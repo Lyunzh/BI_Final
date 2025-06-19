@@ -11,7 +11,7 @@ for ((i = 0; i < DAYS; i++)); do
     date=$(date -d "$START_DATE +$i day" +"%Y%m%d")
     topic="${TOPIC_PREFIX}${date}"
     echo "Creating topic '$topic'..."
-    "$KAFKA_BIN/kafka-topics.sh" \
+    "/usr/local/kafka/bin/kafka-topics.sh" \
         --create \
         --bootstrap-server localhost:9092 \
         --replication-factor $REPLICATION \

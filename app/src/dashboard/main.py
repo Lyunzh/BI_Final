@@ -1,18 +1,47 @@
 import streamlit as st
-st.set_page_config(page_title="BI Dashboard", layout="wide")
-import app
-import page2
-import page3
-import log_view
+from data.DataLoader import DataLoader
 
-st.sidebar.title("页面导航")
-page = st.sidebar.radio("请选择页面", ["首页", "第二个页面", "新闻饼状图页面", "日志查看"])
+def main():
+    st.title("类别趋势分析仪表板")
+    loader = DataLoader()
+    latest_date = loader.get_latest_date()
+    st.info(f"最近一天（数据库最新行为日期）为：{latest_date}")
 
-if page == "首页":
-    app.main()
-elif page == "第二个页面":
-    page2.main()
-elif page == "新闻饼状图页面":
-    page3.main()
-elif page == "日志查看":
-    log_view.main() 
+    # 查询类别趋势数据（每个category每天的热度）
+    df = loader.get_category_daily_hot()
+    if df.empty:
+        st.warning("暂无类别趋势数据")
+        return
+
+    # 类别选择
+    categories = sorted(df['category'].unique())
+    selected_category = st.selectbox("选择类别进行高峰分析", categories)
+
+    # 计算高峰点
+    sub_df = df[df['category'] == selected_category]
+    if sub_df.empty:
+        st.warning(f"{selected_category} 暂无数据")
+        return
+    max_row = sub_df.loc[sub_df['clicks'].idxmax()]
+    analysis_text = f"{selected_category}在{max_row['date']}达到点击高峰（{max_row['clicks']}次），可能由于重大事件或新闻引发关注。"
+
+    # 画折线图
+    import plotly.express as px
+    fig = px.line(df, x='date', y='clicks', color='category',
+                  title='各类别点击量趋势',
+                  labels={'date': '时间', 'clicks': '点击次数', 'category': '类别'})
+    fig.add_annotation(
+        x=max_row['date'],
+        y=max_row['clicks'],
+        text=analysis_text,
+        showarrow=True,
+        arrowhead=2,
+        ax=0,
+        ay=-80,
+        bgcolor='rgba(255,255,255,0.9)',
+        bordercolor='red',
+        font=dict(color='black'),
+        arrowcolor='red',
+        borderpad=4
+    )
+    st.plotly_chart(fig, use_container_width=True)
