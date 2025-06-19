@@ -1,0 +1,6 @@
+query,elapsed_seconds,timestamp
+SELECT * FROM users,0.123,2024-06-01 10:00:00
+SELECT * FROM orders WHERE user_id=1,0.256,2024-06-01 10:01:00
+SELECT COUNT(*) FROM logs,0.078,2024-06-01 10:02:00
+SELECT * FROM products WHERE price>100,0.312,2024-06-01 10:03:00
+SELECT * FROM sales WHERE date>='2024-05-01',0.201,2024-06-01 10:04:00 
