@@ -1,0 +1,9 @@
+query,elapsed_seconds,timestamp
+"
+            SELECT ub.event_time, ub.news_id, nm.title, nm.category, nm.topic, nm.content, ub.duration
+            FROM user_behavior_0613_0617 ub
+            JOIN news_metadata nm ON ub.news_id = nm.news_id
+            WHERE ub.user_id = %(user_id)s
+            ORDER BY ub.event_time DESC
+            LIMIT %(limit)s
+        ",0.006781101226806641,2025-06-20 03:38:19
